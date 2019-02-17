@@ -65,12 +65,23 @@ def get_y():
 
     Returns: 
     : y of size N 
+    : h_actual of size n
     '''
     h = get_h()
     F = get_F()
     X = get_X()
-    return np.matmul(np.matmul(X,F),h)
+    return np.matmul(np.matmul(X,F),h), h
 
 @ex.automain
 def main():
-    print(get_y())
+    y, h_act = get_y()
+    X = get_X()
+    F = get_F()
+    A = np.matmul(X,F)      # usual y = Ah + n
+    h_est = np.linalg.inv(np.matmul(A.T,A))
+    h_est = np.matmul(h_est,A.T)
+    h_est = np.matmul(h_est, y)
+    error = h_act - h_est
+    print(f"h actual {h_act}")
+    print(f"h estimated {h_est}")
+    print(f"Error L2 in linear estimation is {np.linalg.norm(error)}")
