@@ -8,6 +8,6 @@
 
 1. [x] Generate y vector.
 2. [x] Use LSE to get h.
-3. [ ] Sparsity Q2.
+3. [x] Sparsity Q2.
 4. [ ] Guard Band of 200 each side.
 5. [ ] Constrained LSE formulation.
