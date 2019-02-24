@@ -9,11 +9,13 @@ def config():
     x_ii = np.array([1 + 1j,-1 + 1j,1 - 1j,-1 - 1j], dtype= np.complex_)    # diag of X belongs to
     N = 1024                          # no of freqs
     n = 16                            # no of channel taps
+    trials = 10000                    # no of trials per estimation
 
     sigma_real = 0.1
     sigma_imag = 0.1
 
     d = 0.2                           # Decay factor
+    guard = 0                         # Guard Bands
 
 @ex.capture
 def get_F(N, n):
@@ -33,13 +35,14 @@ def get_F(N, n):
     return F
 
 @ex.capture
-def get_X(N, x_ii,guard = 0):
+def get_X(xx, N, guard):
     '''
     Generates diagonal matrix with known symbols
+    : Sequence xx of required length
     '''
     assert not ((N%4)&(guard%4)&(N<2*guard)), "N must be divisible by 4"
 
-    xx = np.tile(x_ii, (N-2*guard)//4)
+    # xx = np.tile(x_ii, (N-2*guard)//4)
     X = (0+0j)*np.zeros([N,N])
     X[guard:N-guard,guard:N-guard] = np.diag(xx)
     return X
@@ -112,22 +115,78 @@ def get_estim_sparse_h(A,y,zero_ind,lam=0):
     h_sparse_estim = h_est - np.matmul(np.matmul(tempM,np.linalg.inv(np.matmul(C_m,tempM))),constraint)
     return h_sparse_estim
 
+@ex.capture
+def get_random_xx(x_ii, N):
+    xx = np.random.randint(low=0, high=4, size=N)
+    for i in range(4):
+        xx[np.where(xx == i)] = x_ii[i]
 
-@ex.automain
-def main():
-    N = 1024
-    L = 16
-    x_ii = np.array([1+1j,-1+1j,1-1j,-1-1j])
-    X = get_X(N,x_ii,200)
-    print(X.shape)
+    return xx
+
+@ex.capture
+def q1(guard, N, trials):
+    '''
+    LSE of h_act for 10,000 trials
+    '''
+    print("\n\n -----\n Question 1\n LSE of h_act for 10,000 trials")
+    h_act = get_h()
+    h_est = np.zeros_like(h_act, dtype=np.complex_)
+    error = 0
+
+    for trial in range(trials):
+        xx = get_random_xx()[:1024 - guard*2]
+
+        X = get_X(xx, N=N, guard=guard)
+        F = get_F()
+        y = get_y(X,F,h_act)
+        A = get_A(X,F)
+        h_est_tt = get_estim_h(A,y)
+        error_tt = np.linalg.norm(h_act - h_est_tt)
+    
+        h_est += h_est_tt
+        error += error_tt
+    h_est/=trials
+    error/=trials
+    print(f"h actual {h_act}")
+    print(f"h estimated {h_est}")
+    print(f"Error L2 in linear estimation is {error}")
+
+@ex.capture
+def q3(N, x_ii, L, trials):
+    '''
+    200 zero guard bands
+    '''
+    print("\n\n -----\n Question 3\n 200 zero guard bands, each side")
     non_zero_ind = [2,5,7,9,10,12]
     zero_ind = np.delete(np.arange(L),non_zero_ind)
     h_act = get_h_sparse(L,zero_ind)
-    F = get_F(N,L)
-    y = get_y(X,F,h_act)
-    A = get_A(X,F)
-    h_est = get_estim_sparse_h(A,y,zero_ind,0.5)
-    error = h_act - h_est
+    error = 0
+    h_est = np.zeros_like(h_act, dtype=np.complex_)
+
+    for trail in range(trials):
+        xx = get_random_xx()[:N - 400]
+        X = get_X(xx, N,guard=200)
+        
+        F = get_F()
+        y = get_y(X,F,h_act)
+        A = get_A(X,F)
+
+        h_est_tt = get_estim_sparse_h(A,y,zero_ind,0.5)
+        error = np.linalg.norm(h_act - h_est_tt)
+
+        h_est += h_est_tt
+        error += error_tt
+    
+    h_est/=trials
+    error/=trials
     print(f"h actual {h_act}")
     print(f"h estimated {h_est}")
-    print(f"Error L2 in linear estimation is {np.linalg.norm(error)}")
+    print(f"Error L2 in linear estimation is {error}")
+
+@ex.automain
+def main():
+    q1()
+    # q2()
+    # q3()
+
+    
