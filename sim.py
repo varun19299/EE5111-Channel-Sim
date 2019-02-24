@@ -9,7 +9,7 @@ ex = Experiment("simulation")
 def config():
     x_ii = np.array([1 + 1j,-1 + 1j,1 - 1j,-1 - 1j], dtype= np.complex_)    # diag of X belongs to
     N = 1024                          # no of freqs
-    n = 16                            # no of channel taps
+    L = 16                            # no of channel taps
     trials = 10000                    # no of trials per estimation
 
     sigma_real = 0.1
@@ -17,9 +17,14 @@ def config():
 
     d = 0.2                           # Decay factor
     guard = 0                         # Guard Bands
+    
+    lam = 0
+    non_zero_ind = [2,5,7,9,10,12]
+    zero_ind = np.delete(np.arange(L),non_zero_ind)
+
 
 @ex.capture
-def get_F(N, n):
+def get_F(N, L):
     '''
     Generate IDFT Matrix
     : N : No of frequencies
@@ -28,9 +33,9 @@ def get_F(N, n):
     Returns:
     Float Matrix: N*n
     '''
-    F = np.zeros((N,n), dtype = np.complex_) 
+    F = np.zeros((N,L), dtype = np.complex_) 
     for i in range(N):
-        for j in range(n):
+        for j in range(L):
             F[i, j] = cmath.rect(1, 2*np.pi*i*j/1024)
 
     return F
@@ -49,7 +54,7 @@ def get_X(xx, N, guard):
     return X
 
 @ex.capture
-def get_h(n, d=0.2, sigma2_real=0.5, sigma2_imag=0.5):
+def get_h(L, d=0.2, sigma2_real=0.5, sigma2_imag=0.5):
     '''
     n tap time domain channel vector
 
@@ -57,23 +62,23 @@ def get_h(n, d=0.2, sigma2_real=0.5, sigma2_imag=0.5):
     : sigma_real : variance of zero mean gaussian dist for real part
     : sigma_imag : variance of zero mean gaussian dist for imag part
     '''
-    a = np.random.normal(0, np.sqrt(sigma2_real), size = n)
-    b = np.random.normal(0, np.sqrt(sigma2_imag), size = n)
-    p = np.exp(-d*np.arange(n))
+    a = np.random.normal(0, np.sqrt(sigma2_real), size = L)
+    b = np.random.normal(0, np.sqrt(sigma2_imag), size = L)
+    p = np.exp(-d*np.arange(L))
     h = p * (a + b*1j)
     h = h/np.linalg.norm(p)
     return h[:,None]
 
 @ex.capture
-def get_h_sparse(n, zero_ind,d=0.2, sigma2_real=0.5, sigma2_imag=0.5):
+def get_h_sparse(L, zero_ind,d=0.2, sigma2_real=0.5, sigma2_imag=0.5):
     '''
-    n tap time domain channel vector
+    n tap time domain channel sparse vector
 
     Generates h vec according to exponentially decaying power-delay profile
     : sigma_real : variance of zero mean gaussian dist for real part
     : sigma_imag : variance of zero mean gaussian dist for imag part
     '''
-    h = get_h(n,d,sigma2_real,sigma2_imag)
+    h = get_h(L,d,sigma2_real,sigma2_imag)
     h[zero_ind] = 0 + 0j
     return h
 
@@ -94,7 +99,7 @@ def get_y(X,F,h,sigma2=0.1,sigma2_real=0.05):
 
 @ex.capture
 def get_A(X,F):
-    return np.matrix(np.matmul(X,F))
+    return np.matrix(np.matmul(X,F),dtype=np.complex_)
 
 @ex.capture
 def get_estim_h(A,y,lam=0):
@@ -102,7 +107,7 @@ def get_estim_h(A,y,lam=0):
     LSE estimate of Ah = y 
     Regularisation lambda
     '''
-    h_est = np.linalg.inv(np.matmul(A.getH(),A)+lam*(1+0j)*np.eye(A.shape[1]))
+    h_est = np.linalg.inv(np.matmul(A.getH(),A)+lam*np.eye(A.shape[1],dtype=np.complex_))
     h_est = np.matmul(h_est,A.getH())
     h_est = np.matmul(h_est,y)
     return h_est
@@ -118,9 +123,24 @@ def get_estim_sparse_h(A,y,zero_ind,lam=0):
     L = h_est.shape[0]
     r = len(zero_ind)
     C_m = np.eye(L)
-    C_m = np.matrix(C_m[zero_ind,:])
+    C_m = np.matrix(C_m[zero_ind,:],dtype=np.complex_)
     c_b = np.zeros([r,1])
-    tempM = np.matmul(np.linalg.inv(np.matmul(A.getH(),A)+lam*(1+0j)*np.eye(A.shape[1])),C_m.getH())
+    tempM = np.matmul(np.linalg.inv(np.matmul(A.getH(),A)+lam*np.eye(A.shape[1],dtype=np.complex_)),C_m.getH())
+    constraint = np.matmul(C_m,h_est) - c_b
+    h_sparse_estim = h_est - np.matmul(np.matmul(tempM,np.linalg.inv(np.matmul(C_m,tempM))),constraint)
+    return h_sparse_estim
+
+@ex.capture
+def get_estim_cons_h(A,y,zero_ind,C_m,c_b,lam=0):
+    '''
+    LSE estimate of Ah = y 
+    Regularisation lambda
+    With known linear constraints
+    '''
+    h_est = get_estim_h(A,y)
+    L = h_est.shape[0]
+    r = len(zero_ind)
+    tempM = np.matmul(np.linalg.inv(np.matmul(A.getH(),A)+lam*np.eye(A.shape[1],dtype=np.complex_)),C_m.getH())
     constraint = np.matmul(C_m,h_est) - c_b
     h_sparse_estim = h_est - np.matmul(np.matmul(tempM,np.linalg.inv(np.matmul(C_m,tempM))),constraint)
     return h_sparse_estim
@@ -138,7 +158,7 @@ def get_random_xx(x_ii, N):
     return xx
 
 @ex.capture
-def q1(guard, N, trials):
+def q1(N,L, trials):
     '''
     LSE of h_act for 10,000 trials
     '''
@@ -146,18 +166,15 @@ def q1(guard, N, trials):
     h_act = get_h()
     h_est = np.zeros_like(h_act, dtype=np.complex_)
     error = 0
-
     pbar = tqdm(range(trials))
     for trial in pbar:
-        xx = get_random_xx()[:1024 - guard*2]
-
-        X = get_X(xx, N=N, guard=guard)
+        xx = get_random_xx()
+        X = get_X(xx)
         F = get_F()
         y = get_y(X,F,h_act)
         A = get_A(X,F)
         h_est_tt = get_estim_h(A,y)
         error_tt = np.linalg.norm(h_act - h_est_tt)
-    
         h_est += (h_est_tt - h_est)/(trial + 1)
         error += (error_tt - error)/(trial + 1)
         pbar.set_description(f"Trial {trial} error {error}")
@@ -167,28 +184,52 @@ def q1(guard, N, trials):
     print(f"Error L2 in linear estimation is {error}")
 
 @ex.capture
-def q3(guard, N, x_ii, L, trials):
+def q2(N,L, trials):
+    '''
+    LSE of h_act for 10,000 trials
+    '''
+    print("\n\n -----\n Question 2\n LSE of sparse h_act for 10,000 trials")
+    h_act = get_h_sparse()
+    h_est = np.zeros_like(h_act, dtype=np.complex_)
+    error = 0
+    pbar = tqdm(range(trials))
+    for trial in pbar:
+        xx = get_random_xx()
+        X = get_X(xx)
+        F = get_F()
+        y = get_y(X,F,h_act)
+        A = get_A(X,F)
+        h_est_tt = get_estim_sparse_h(A,y)
+        error_tt = np.linalg.norm(h_act - h_est_tt)
+        h_est += (h_est_tt - h_est)/(trial + 1)
+        error += (error_tt - error)/(trial + 1)
+        pbar.set_description(f"Trial {trial} error {error}")
+    
+    print(f"h actual {h_act}")
+    print(f"h estimated {h_est}")
+    print(f"Error L2 in linear estimation is {error}")
+
+@ex.capture
+def q3(guard, N, L, lam,trials):
     '''
     200 zero guard bands
     '''
     print("\n\n -----\n Question 3\n 200 zero guard bands, each side")
-    non_zero_ind = [2,5,7,9,10,12]
-    zero_ind = np.delete(np.arange(L),non_zero_ind)
-    h_act = get_h_sparse(L,zero_ind)
+    h_act = get_h()
     error = 0
     h_est = np.zeros_like(h_act, dtype=np.complex_)
-
     pbar = tqdm(range(trials))
-    for trail in pbar:
-        xx = get_random_xx()[:N - 400]
-        X = get_X(xx, N,guard=200)
+    for trial in pbar:
+        xx = get_random_xx()[:N-2*guard]
+        X = get_X(xx)
         
         F = get_F()
         y = get_y(X,F,h_act)
         A = get_A(X,F)
 
-        h_est_tt = get_estim_sparse_h(A,y,zero_ind,0.5)
+        h_est_tt = get_estim_h(A,y)
         error = np.linalg.norm(h_act - h_est_tt)
+        error_tt = np.linalg.norm(h_act - h_est_tt)
 
         h_est += (h_est_tt - h_est)/(trial + 1)
         error += (error_tt - error)/(trial + 1)
@@ -201,8 +242,4 @@ def q3(guard, N, x_ii, L, trials):
 
 @ex.automain
 def main():
-    q1()
-    # q2()
-    # q3()
-
-    
+    q3()
