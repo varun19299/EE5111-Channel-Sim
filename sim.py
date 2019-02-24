@@ -12,8 +12,8 @@ def config():
     L = 16                            # no of channel taps
     trials = 10000                    # no of trials per estimation
 
-    sigma_real = 0.1
-    sigma_imag = 0.1
+    sigma_real = 0.1/2
+    sigma_imag = 0.1/2
 
     d = 0.2                           # Decay factor
     guard = 0                         # Guard Bands
@@ -84,7 +84,7 @@ def get_h_sparse(L, zero_ind,d=0.2, sigma2_real=0.5, sigma2_imag=0.5):
     return h
 
 @ex.capture
-def get_y(X,F,h,sigma2=0.1,sigma2_real=0.05):
+def get_y(X,F,h,sigma_imag=0.1,sigma_real=0.05):
     '''
     Generates y vector
 

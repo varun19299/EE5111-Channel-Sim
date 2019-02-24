@@ -10,4 +10,4 @@
 2. [x] Use LSE to get h.
 3. [x] Sparsity Q2.
 4. [x] Guard Band of 200 each side.
-5. [ ] Constrained LSE formulation.
+5. [x] Constrained LSE formulation.
