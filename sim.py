@@ -33,14 +33,15 @@ def get_F(N, n):
     return F
 
 @ex.capture
-def get_X(N, x_ii):
+def get_X(N, x_ii,guard = 0):
     '''
     Generates diagonal matrix with known symbols
     '''
-    assert not (N%4), "N must be divisible by 4"
+    assert not ((N%4)&(guard%4)&(N<2*guard)), "N must be divisible by 4"
 
-    xx = np.tile(x_ii, N//4)
-    X = np.diag(xx)
+    xx = np.tile(x_ii, (N-2*guard)//4)
+    X = (0+0j)*np.zeros([N,N])
+    X[guard:N-guard,guard:N-guard] = np.diag(xx)
     return X
 
 @ex.capture
@@ -92,21 +93,21 @@ def get_A(X,F):
     return np.matrix(np.matmul(X,F))
 
 @ex.capture
-def get_estim_h(A,y):
-    h_est = np.linalg.inv(np.matmul(A.getH(),A))
+def get_estim_h(A,y,lam=0):
+    h_est = np.linalg.inv(np.matmul(A.getH(),A)+lam*(1+0j)*np.eye(A.shape[1]))
     h_est = np.matmul(h_est,A.getH())
     h_est = np.matmul(h_est,y)
     return h_est
 
 @ex.capture
-def get_estim_sparse_h(A,y,zero_ind):
+def get_estim_sparse_h(A,y,zero_ind,lam=0):
     h_est = get_estim_h(A,y)
     L = h_est.shape[0]
     r = len(zero_ind)
     C_m = np.eye(L)
     C_m = np.matrix(C_m[zero_ind,:])
     c_b = np.zeros([r,1])
-    tempM = np.matmul(np.linalg.inv(np.matmul(A.getH(),A)),C_m.getH())
+    tempM = np.matmul(np.linalg.inv(np.matmul(A.getH(),A)+lam*(1+0j)*np.eye(A.shape[1])),C_m.getH())
     constraint = np.matmul(C_m,h_est) - c_b
     h_sparse_estim = h_est - np.matmul(np.matmul(tempM,np.linalg.inv(np.matmul(C_m,tempM))),constraint)
     return h_sparse_estim
@@ -117,14 +118,15 @@ def main():
     N = 1024
     L = 16
     x_ii = np.array([1+1j,-1+1j,1-1j,-1-1j])
-    X = get_X(N,x_ii)
+    X = get_X(N,x_ii,200)
+    print(X.shape)
     non_zero_ind = [2,5,7,9,10,12]
     zero_ind = np.delete(np.arange(L),non_zero_ind)
     h_act = get_h_sparse(L,zero_ind)
     F = get_F(N,L)
     y = get_y(X,F,h_act)
     A = get_A(X,F)
-    h_est = get_estim_sparse_h(A,y,zero_ind)
+    h_est = get_estim_sparse_h(A,y,zero_ind,0.5)
     error = h_act - h_est
     print(f"h actual {h_act}")
     print(f"h estimated {h_est}")
