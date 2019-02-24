@@ -1,6 +1,7 @@
 import numpy as np
 from sacred import Experiment
 import cmath
+from tqdm import tqdm
 
 ex = Experiment("simulation")
 
@@ -43,7 +44,7 @@ def get_X(xx, N, guard):
     assert not ((N%4)&(guard%4)&(N<2*guard)), "N must be divisible by 4"
 
     # xx = np.tile(x_ii, (N-2*guard)//4)
-    X = (0+0j)*np.zeros([N,N])
+    X = np.zeros([N,N], dtype=np.complex_)
     X[guard:N-guard,guard:N-guard] = np.diag(xx)
     return X
 
@@ -118,6 +119,7 @@ def get_estim_sparse_h(A,y,zero_ind,lam=0):
 @ex.capture
 def get_random_xx(x_ii, N):
     xx = np.random.randint(low=0, high=4, size=N)
+    xx = xx*(1 + 0j)
     for i in range(4):
         xx[np.where(xx == i)] = x_ii[i]
 
@@ -133,7 +135,8 @@ def q1(guard, N, trials):
     h_est = np.zeros_like(h_act, dtype=np.complex_)
     error = 0
 
-    for trial in range(trials):
+    pbar = tqdm(range(trials))
+    for trial in pbar:
         xx = get_random_xx()[:1024 - guard*2]
 
         X = get_X(xx, N=N, guard=guard)
@@ -143,10 +146,10 @@ def q1(guard, N, trials):
         h_est_tt = get_estim_h(A,y)
         error_tt = np.linalg.norm(h_act - h_est_tt)
     
-        h_est += h_est_tt
-        error += error_tt
-    h_est/=trials
-    error/=trials
+        h_est += (h_est_tt - h_est)/(trial + 1)
+        error += (error_tt - error)/(trial + 1)
+        pbar.set_description(f"Trial {trial} error {error}")
+    
     print(f"h actual {h_act}")
     print(f"h estimated {h_est}")
     print(f"Error L2 in linear estimation is {error}")
@@ -163,7 +166,8 @@ def q3(N, x_ii, L, trials):
     error = 0
     h_est = np.zeros_like(h_act, dtype=np.complex_)
 
-    for trail in range(trials):
+    pbar = tqdm(range(trials))
+    for trail in pbar:
         xx = get_random_xx()[:N - 400]
         X = get_X(xx, N,guard=200)
         
@@ -174,11 +178,11 @@ def q3(N, x_ii, L, trials):
         h_est_tt = get_estim_sparse_h(A,y,zero_ind,0.5)
         error = np.linalg.norm(h_act - h_est_tt)
 
-        h_est += h_est_tt
-        error += error_tt
+        h_est += (h_est_tt - h_est)/(trial + 1)
+        error += (error_tt - error)/(trial + 1)
+
+        pbar.set_description(f"Trial {trial} error {error}")
     
-    h_est/=trials
-    error/=trials
     print(f"h actual {h_act}")
     print(f"h estimated {h_est}")
     print(f"Error L2 in linear estimation is {error}")
