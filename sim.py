@@ -57,7 +57,7 @@ def get_h(n, d=0.2, sigma2_real=0.5, sigma2_imag=0.5):
     p = np.exp(-d*np.arange(n))
     h = p * (a + b*1j)
     h = h/np.linalg.norm(p)
-    return h
+    return h[:,None]
 
 @ex.capture
 def get_h_sparse(n, zero_ind,d=0.2, sigma2_real=0.5, sigma2_imag=0.5):
@@ -73,7 +73,7 @@ def get_h_sparse(n, zero_ind,d=0.2, sigma2_real=0.5, sigma2_imag=0.5):
     return h
 
 @ex.capture
-def get_y(X,F,h):
+def get_y(X,F,h,sigma2=0.1,sigma2_real=0.05):
     '''
     Generates y vector
 
@@ -81,7 +81,11 @@ def get_y(X,F,h):
     : y of size N 
     : h_actual of size n
     '''
-    return np.matmul(np.matmul(X,F),h)
+    assert (sigma2>sigma2_real)
+    y = np.matmul(np.matmul(X,F),h)
+    N = y.shape[0]
+    y = y + (np.random.normal(0,np.sqrt(sigma2_real),size=N) + np.random.normal(0,np.sqrt(sigma2-sigma2_real),size=N) * 1j)[:,None]
+    return y
 
 @ex.capture
 def get_A(X,F):
@@ -91,20 +95,20 @@ def get_A(X,F):
 def get_estim_h(A,y):
     h_est = np.linalg.inv(np.matmul(A.getH(),A))
     h_est = np.matmul(h_est,A.getH())
-    h_est = np.matmul(h_est, y)
+    h_est = np.matmul(h_est,y)
     return h_est
 
 @ex.capture
 def get_estim_sparse_h(A,y,zero_ind):
     h_est = get_estim_h(A,y)
-    L = h_est.shape[1]
+    L = h_est.shape[0]
     r = len(zero_ind)
     C_m = np.eye(L)
     C_m = np.matrix(C_m[zero_ind,:])
     c_b = np.zeros([r,1])
     tempM = np.matmul(np.linalg.inv(np.matmul(A.getH(),A)),C_m.getH())
-    constraint = np.matmul(C_m,h_est.T) - c_b
-    h_sparse_estim = h_est - np.matmul(np.matmul(tempM,np.linalg.inv(np.matmul(C_m,tempM))),constraint).T
+    constraint = np.matmul(C_m,h_est) - c_b
+    h_sparse_estim = h_est - np.matmul(np.matmul(tempM,np.linalg.inv(np.matmul(C_m,tempM))),constraint)
     return h_sparse_estim
 
 
@@ -120,7 +124,7 @@ def main():
     F = get_F(N,L)
     y = get_y(X,F,h_act)
     A = get_A(X,F)
-    h_est = get_estim_sparse_h(A,y,zero_ind)    
+    h_est = get_estim_sparse_h(A,y,zero_ind)
     error = h_act - h_est
     print(f"h actual {h_act}")
     print(f"h estimated {h_est}")
