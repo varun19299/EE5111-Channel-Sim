@@ -2,6 +2,7 @@ import numpy as np
 from sacred import Experiment
 import cmath
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 ex = Experiment("simulation")
 
@@ -271,7 +272,16 @@ def q4(N,L,eq_cons_ind,trials):
     print(f"h actual {h_act}")
     print(f"h estimated {h_est}")
     print(f"Error L2 in linear estimation is {error}")
+    return h_act, h_est
 
+@ex.capture
+def plot_h(h_true, h_estim):
+    h_true_mag = np.absolute(h_true)
+    h_estim_mag = np.absolute(h_estim)
+    plt.plot(h_true_mag, 'o', label='True h')
+    plt.plot(h_estim_mag, 'o', label='Estimated h')
+    plt.legend(loc='best')
+    plt.show()
 @ex.automain
 def main():
-    q4()
+    h_act, h_est = q4()
