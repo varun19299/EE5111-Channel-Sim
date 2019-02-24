@@ -21,6 +21,7 @@ def config():
     lam = 0
     non_zero_ind = [2,5,7,9,10,12]
     zero_ind = np.delete(np.arange(L),non_zero_ind)
+    eq_cons_ind = np.array([[0,2,4],[1,3,5]])
 
 
 @ex.capture
@@ -124,14 +125,14 @@ def get_estim_sparse_h(A,y,zero_ind,lam=0):
     r = len(zero_ind)
     C_m = np.eye(L)
     C_m = np.matrix(C_m[zero_ind,:],dtype=np.complex_)
-    c_b = np.zeros([r,1])
+    c_b = np.zeros([r,1],dtype=np.complex_)
     tempM = np.matmul(np.linalg.inv(np.matmul(A.getH(),A)+lam*np.eye(A.shape[1],dtype=np.complex_)),C_m.getH())
     constraint = np.matmul(C_m,h_est) - c_b
     h_sparse_estim = h_est - np.matmul(np.matmul(tempM,np.linalg.inv(np.matmul(C_m,tempM))),constraint)
     return h_sparse_estim
 
 @ex.capture
-def get_estim_cons_h(A,y,zero_ind,C_m,c_b,lam=0):
+def get_estim_cons_h(A,y,C_m,c_b,lam=0):
     '''
     LSE estimate of Ah = y 
     Regularisation lambda
@@ -139,7 +140,6 @@ def get_estim_cons_h(A,y,zero_ind,C_m,c_b,lam=0):
     '''
     h_est = get_estim_h(A,y)
     L = h_est.shape[0]
-    r = len(zero_ind)
     tempM = np.matmul(np.linalg.inv(np.matmul(A.getH(),A)+lam*np.eye(A.shape[1],dtype=np.complex_)),C_m.getH())
     constraint = np.matmul(C_m,h_est) - c_b
     h_sparse_estim = h_est - np.matmul(np.matmul(tempM,np.linalg.inv(np.matmul(C_m,tempM))),constraint)
@@ -186,7 +186,7 @@ def q1(N,L, trials):
 @ex.capture
 def q2(N,L, trials):
     '''
-    LSE of h_act for 10,000 trials
+    LSE of sparse h_act for 10,000 trials
     '''
     print("\n\n -----\n Question 2\n LSE of sparse h_act for 10,000 trials")
     h_act = get_h_sparse()
@@ -240,6 +240,38 @@ def q3(guard, N, L, lam,trials):
     print(f"h estimated {h_est}")
     print(f"Error L2 in linear estimation is {error}")
 
+@ex.capture
+def q4(N,L,eq_cons_ind,trials):
+    '''
+    LSE of constrained h_act for 10,000 trials
+    '''
+    print("\n\n -----\n Question 4\n LSE of constrained h_act for 10,000 trials")
+    h_act = get_h()
+    h_act[eq_cons_ind[1]] = h_act[eq_cons_ind[0]]
+    C_m = np.zeros([eq_cons_ind.shape[1],L],dtype=np.complex_)
+    C_m[np.arange(eq_cons_ind.shape[1]),eq_cons_ind[0]] = 1 + 0j
+    C_m[np.arange(eq_cons_ind.shape[1]),eq_cons_ind[1]] = -1 + 0j
+    C_m = np.matrix(C_m)    
+    c_b = np.zeros([eq_cons_ind.shape[1],1],dtype=np.complex_)
+    h_est = np.zeros_like(h_act, dtype=np.complex_)
+    error = 0
+    pbar = tqdm(range(trials))
+    for trial in pbar:
+        xx = get_random_xx()
+        X = get_X(xx)
+        F = get_F()
+        y = get_y(X,F,h_act)
+        A = get_A(X,F)
+        h_est_tt = get_estim_cons_h(A,y,C_m,c_b)
+        error_tt = np.linalg.norm(h_act - h_est_tt)
+        h_est += (h_est_tt - h_est)/(trial + 1)
+        error += (error_tt - error)/(trial + 1)
+        pbar.set_description(f"Trial {trial} error {error}")
+    
+    print(f"h actual {h_act}")
+    print(f"h estimated {h_est}")
+    print(f"Error L2 in linear estimation is {error}")
+
 @ex.automain
 def main():
-    q3()
+    q4()
