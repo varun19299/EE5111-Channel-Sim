@@ -1,3 +1,4 @@
 sacred
 numpy
 matplotlib
+tqdm

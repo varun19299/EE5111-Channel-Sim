@@ -99,7 +99,8 @@ def get_A(X,F):
 @ex.capture
 def get_estim_h(A,y,lam=0):
     '''
-
+    LSE estimate of Ah = y 
+    Regularisation lambda
     '''
     h_est = np.linalg.inv(np.matmul(A.getH(),A)+lam*(1+0j)*np.eye(A.shape[1]))
     h_est = np.matmul(h_est,A.getH())
@@ -108,6 +109,11 @@ def get_estim_h(A,y,lam=0):
 
 @ex.capture
 def get_estim_sparse_h(A,y,zero_ind,lam=0):
+    '''
+    LSE estimate of Ah = y 
+    Regularisation lambda
+    With sparsity in known indices
+    '''
     h_est = get_estim_h(A,y)
     L = h_est.shape[0]
     r = len(zero_ind)
@@ -174,8 +180,8 @@ def q3(guard, N, x_ii, L, trials):
 
     pbar = tqdm(range(trials))
     for trail in pbar:
-        xx = get_random_xx()[:N - 2*guard]
-        X = get_X(xx, N,guard=guard)
+        xx = get_random_xx()[:N - 400]
+        X = get_X(xx, N,guard=200)
         
         F = get_F()
         y = get_y(X,F,h_act)
