@@ -11,15 +11,16 @@ def config():
     x_ii = np.array([1 + 1j,-1 + 1j,1 - 1j,-1 - 1j], dtype= np.complex_)    # diag of X belongs to
     N = 1024                          # no of freqs
     L = 16                            # no of channel taps
-    trials = 10000                    # no of trials per estimation
+    trials = 100                    # no of trials per estimation
 
-    sigma_real = 0.1/2
-    sigma_imag = 0.1/2
+    sigma = 0.1
+    sigma_real = sigma/2
+    sigma_imag = sigma/2
 
     d = 0.2                           # Decay factor
-    guard = 0                         # Guard Bands
+    guard = 200                         # Guard Bands
     
-    lam = 0
+    lam = 0.0
     non_zero_ind = [2,5,7,9,10,12]
     zero_ind = np.delete(np.arange(L),non_zero_ind)
     eq_cons_ind = np.array([[0,2,4],[1,3,5]])
@@ -93,10 +94,9 @@ def get_y(X,F,h,sigma_imag=0.1,sigma_real=0.05):
     : y of size N 
     : h_actual of size n
     '''
-    assert (sigma2>sigma2_real)
     y = np.matmul(np.matmul(X,F),h)
     N = y.shape[0]
-    y = y + (np.random.normal(0,np.sqrt(sigma2_real),size=N) + np.random.normal(0,np.sqrt(sigma2-sigma2_real),size=N) * 1j)[:,None]
+    y = y + (np.random.normal(0,np.sqrt(sigma_real),size=N) + np.random.normal(0,np.sqrt(sigma_imag),size=N) * 1j)[:,None]
     return y
 
 @ex.capture
@@ -183,6 +183,7 @@ def q1(N,L, trials):
     print(f"h actual {h_act}")
     print(f"h estimated {h_est}")
     print(f"Error L2 in linear estimation is {error}")
+    return h_act,h_est
 
 @ex.capture
 def q2(N,L, trials):
@@ -209,6 +210,7 @@ def q2(N,L, trials):
     print(f"h actual {h_act}")
     print(f"h estimated {h_est}")
     print(f"Error L2 in linear estimation is {error}")
+    return h_act,h_est
 
 @ex.capture
 def q3(guard, N, L, lam,trials):
@@ -223,7 +225,6 @@ def q3(guard, N, L, lam,trials):
     for trial in pbar:
         xx = get_random_xx()[:N-2*guard]
         X = get_X(xx)
-        
         F = get_F()
         y = get_y(X,F,h_act)
         A = get_A(X,F)
@@ -240,6 +241,7 @@ def q3(guard, N, L, lam,trials):
     print(f"h actual {h_act}")
     print(f"h estimated {h_est}")
     print(f"Error L2 in linear estimation is {error}")
+    return h_act,h_est
 
 @ex.capture
 def q4(N,L,eq_cons_ind,trials):
@@ -248,7 +250,7 @@ def q4(N,L,eq_cons_ind,trials):
     '''
     print("\n\n -----\n Question 4\n LSE of constrained h_act for 10,000 trials")
     h_act = get_h()
-    h_act[eq_cons_ind[1]] = h_act[eq_cons_ind[0]]
+    # h_act[eq_cons_ind[1]] = h_act[eq_cons_ind[0]]
     C_m = np.zeros([eq_cons_ind.shape[1],L],dtype=np.complex_)
     C_m[np.arange(eq_cons_ind.shape[1]),eq_cons_ind[0]] = 1 + 0j
     C_m[np.arange(eq_cons_ind.shape[1]),eq_cons_ind[1]] = -1 + 0j
@@ -282,6 +284,8 @@ def plot_h(h_true, h_estim):
     plt.plot(h_estim_mag, 'o', label='Estimated h')
     plt.legend(loc='best')
     plt.show()
+
 @ex.automain
 def main():
-    h_act, h_est = q4()
+    h_act, h_est = q3()
+    plot_h(h_act,h_est)
