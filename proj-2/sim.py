@@ -9,11 +9,11 @@ ex = Experiment("MLE-dist-simulation")
 @ex.config
 def config():
     A = 1
-    N = 10000      # No of data points
+    N = 10      # No of data points
     n = 100     # No of experiments to repeat over
 
 @ex.capture
-def plot_stats(distribution, estimator, A, N, n):
+def plot_stats(distribution, estimator,range_ll, A, N, n):
     pbar = tqdm(range(n))
     estimator_ll = []
     for i in pbar:
@@ -25,7 +25,7 @@ def plot_stats(distribution, estimator, A, N, n):
     estimator_mean = np.mean(estimator_ll)
     estimator_var = np.var(estimator_ll)
 
-    plt.hist(estimator_ll, bins = 50)
+    plt.hist(estimator_ll, range=range_ll, bins = 100)
     plt.show()
 
     return estimator_mean, estimator_var
@@ -35,4 +35,5 @@ def plot_stats(distribution, estimator, A, N, n):
 def main(_run):
     distribution = np.random.normal
     distribution = partial(distribution, loc = 1, scale = 1)
-    plot_stats(distribution, np.mean)
+    mean, var = plot_stats(distribution, np.mean, range_ll=[0,2])
+    print(mean, var)
