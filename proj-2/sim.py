@@ -4,6 +4,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from functools import partial
 from scipy import optimize
+import scipy.stats as stats
 
 ex = Experiment("MLE-dist-simulation")
 
@@ -25,8 +26,11 @@ def plot_stats(distribution, estimator,range_ll, A, N, n):
     estimator_ll = np.array(estimator_ll)
     estimator_mean = np.mean(estimator_ll)
     estimator_var = np.var(estimator_ll)
-
+    fit = stats.norm.pdf(data, estimator_mean, estimator_var)
+    
+    plt.plot(data, fit, '-o')
     plt.hist(estimator_ll, range=range_ll, bins = 100)
+    
     plt.show()
 
     return estimator_mean, estimator_var
